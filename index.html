@@ -9,6 +9,7 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   
   <!-- Chargement de Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -179,6 +180,7 @@
         assumptionText: "DCS planning estimator only, not certified real-world TOLD. Tune with Tacview and squadron SOP.",
         margin: "margin", estimated: "estimated", max: "Max", limit: "Limit", usable: "usable fuel",
         closed: "Closed", nav: "Nav / radio", planning: "Planning note", elevation: "Elevation",
+        fetchMetar: "Live METAR", fetching: "Fetching...", downloadPng: "Download PNG", downloading: "Generating...",
       },
       fr: {
         app: "Calculateur TOLD DCS",
@@ -207,6 +209,7 @@
         assumptionText: "Estimateur DCS uniquement, non certifié TOLD réel. À calibrer avec Tacview et SOP escadron.",
         margin: "marge", estimated: "estimé", max: "Max", limit: "Limite", usable: "fuel utilisable",
         closed: "Fermé", nav: "Nav / radio", planning: "Note planning", elevation: "Altitude",
+        fetchMetar: "Météo réelle (METAR)", fetching: "Chargement...", downloadPng: "Télécharger PNG", downloading: "Génération...",
       },
     };
 
@@ -462,6 +465,8 @@
       const [cruiseAltitudeFt, setCruiseAltitudeFt] = useState(25000);
       const [aarPlanned, setAarPlanned] = useState(false);
       const [copied, setCopied] = useState(false);
+      const [fetchingMetar, setFetchingMetar] = useState(false);
+      const [downloading, setDownloading] = useState(false);
 
       const text = T[language];
       const base = AIRBASES[baseId];
@@ -492,6 +497,55 @@
         setCounts((previous) => ({ ...previous, [id]: clamp((previous[id] || 0) + delta, 0, 16) }));
       }
 
+      async function fetchMetar() {
+        setFetchingMetar(true);
+        try {
+          const icao = base.icao;
+          const targetUrl = `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`;
+          let data = null;
+
+          try {
+            // Méthode 1 : Proxy AllOrigins (format GET encapsulé) - Le plus fiable pour contourner les erreurs CORS
+            const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
+            if (res.ok) {
+              const wrapper = await res.json();
+              if (wrapper.contents) data = JSON.parse(wrapper.contents);
+            }
+          } catch (e1) {
+            console.warn("Proxy AllOrigins échoué", e1);
+          }
+
+          if (!data) {
+            try {
+              // Méthode 2 : Requête directe classique en secours
+              const res = await fetch(targetUrl);
+              if (res.ok) data = await res.json();
+            } catch (e2) {
+              console.warn("Requête directe échouée", e2);
+            }
+          }
+          
+          if (!data) {
+            throw new Error("Impossible de récupérer les données (CORS ou réseau).");
+          }
+          
+          if (Array.isArray(data) && data.length > 0) {
+            const metar = data; 
+            if (metar.temp !== undefined) setOatC(Math.round(metar.temp));
+            if (metar.altim_in_hg !== undefined) setQnh(parseFloat(metar.altim_in_hg.toFixed(2)));
+            if (metar.wdir !== undefined) setWindDir(metar.wdir === "VRB" ? 0 : metar.wdir);
+            if (metar.wspd !== undefined) setWindSpeed(metar.wspd);
+          } else {
+            alert(language === 'fr' ? "Aucun METAR trouvé pour cette base." : "No METAR found for this base.");
+          }
+        } catch (e) {
+          console.error(e);
+          alert(language === 'fr' ? "Erreur de connexion à l'API météo. Les requêtes sont peut-être bloquées par votre navigateur." : "Weather API connection error. Requests might be blocked by your browser.");
+        } finally {
+          setFetchingMetar(false);
+        }
+      }
+
       const kneeboard = [
         `${text.app} - ${calc.aircraft.label}`,
         `${text.base}: ${calc.base.name} (${calc.base.icao}) RWY ${calc.runway.id}`,
@@ -508,6 +562,24 @@
           if (typeof window !== "undefined") window.setTimeout(() => setCopied(false), 1400);
         } catch {
           setCopied(false);
+        }
+      }
+
+      async function downloadImage() {
+        setDownloading(true);
+        try {
+          const el = document.getElementById("kneeboard-export");
+          if (!el || typeof window.html2canvas === "undefined") return;
+          const canvas = await window.html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#f4f4f0" });
+          const dataUrl = canvas.toDataURL("image/png");
+          const a = document.createElement("a");
+          a.href = dataUrl;
+          a.download = `Kneeboard_${calc.aircraftId}_${base.icao}.png`;
+          a.click();
+        } catch(e) {
+          console.error(e);
+        } finally {
+          setDownloading(false);
         }
       }
 
@@ -558,7 +630,12 @@
                 </Card>
 
                 <Card>
-                  <h2 className="mb-4 text-lg font-black">{text.weather}</h2>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-lg font-black">{text.weather}</h2>
+                    <button onClick={fetchMetar} disabled={fetchingMetar} className="rounded-full bg-sky-100 px-3 py-1 text-xs font-bold text-sky-700 transition-colors hover:bg-sky-200 disabled:opacity-50">
+                      {fetchingMetar ? text.fetching : text.fetchMetar}
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <NumberField label={text.oat} value={oatC} onChange={setOatC} min={-20} max={60} suffix="°C" />
                     <NumberField label={text.qnh} value={qnh} onChange={setQnh} min={28.5} max={31} step={0.01} suffix="inHg" />
@@ -658,7 +735,10 @@
                     ) : (
                       <div className="rounded-2xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{text.noWarn}</div>
                     )}
-                    <button type="button" onClick={copyCard} className="mt-4 w-full rounded-xl bg-sky-600 px-4 py-3 text-sm font-black text-white">{copied ? text.copied : text.copy}</button>
+                    <div className="mt-4 grid gap-2 md:grid-cols-2">
+                      <button type="button" onClick={copyCard} className="w-full rounded-xl bg-slate-800 px-4 py-3 text-sm font-black text-white transition-colors hover:bg-slate-700">{copied ? text.copied : text.copy}</button>
+                      <button type="button" onClick={downloadImage} disabled={downloading} className="w-full rounded-xl bg-sky-600 px-4 py-3 text-sm font-black text-white transition-colors hover:bg-sky-500 disabled:opacity-50">{downloading ? text.downloading : text.downloadPng}</button>
+                    </div>
                   </Card>
                 </div>
 
@@ -716,6 +796,68 @@
                 </Card>
               </div>
             </div>
+
+            <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
+              <div id="kneeboard-export" className="flex h-[1024px] w-[768px] flex-col gap-6 bg-[#f4f4f0] p-8 text-slate-900" style={{ fontFamily: "Arial, sans-serif" }}>
+                <div className="border-b-4 border-slate-900 pb-4 text-center">
+                  <h1 className="text-4xl font-black uppercase tracking-tighter">{calc.aircraft.label} TOLD CARD</h1>
+                  <p className="mt-2 text-2xl font-bold text-slate-600">{base.name} ({base.icao}) · RWY {calc.runway.id}</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <div className="rounded-xl border-2 border-slate-900 bg-white p-4">
+                      <h2 className="mb-2 border-b-2 border-slate-200 pb-2 text-xl font-black uppercase">Takeoff</h2>
+                      <div className="flex justify-between text-xl"><span className="font-bold">TOGW</span><span>{lb(calc.takeoffWeight)}</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">VR</span><span>{kt(calc.vr)}</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">VLOF</span><span>{kt(calc.vlof)}</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">Dist (GND)</span><span>{ft(calc.toGround)}</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">Accel-Stop</span><span>{ft(calc.accelStop)}</span></div>
+                    </div>
+                    
+                    <div className="rounded-xl border-2 border-slate-900 bg-white p-4">
+                      <h2 className="mb-2 border-b-2 border-slate-200 pb-2 text-xl font-black uppercase">Fuel & Mins</h2>
+                      <div className="flex justify-between text-xl"><span className="font-bold">Takeoff Fuel</span><span>{lb(calc.totalTakeoffFuel)}</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">Req Fuel</span><span>{lb(fuel.totalFuelRequired)}</span></div>
+                      <div className="flex justify-between text-xl text-amber-600"><span className="font-bold">Joker</span><span>{lb(fuel.jokerFuel)}</span></div>
+                      <div className="flex justify-between text-xl text-red-600"><span className="font-bold">Bingo</span><span>{lb(fuel.bingoFuel)}</span></div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="rounded-xl border-2 border-slate-900 bg-white p-4">
+                      <h2 className="mb-2 border-b-2 border-slate-200 pb-2 text-xl font-black uppercase">Landing</h2>
+                      <div className="flex justify-between text-xl"><span className="font-bold">LDGW</span><span>{lb(calc.landingWeight)}</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">VAPP</span><span>{kt(calc.vapp)}</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">VTD</span><span>{kt(calc.vtd)}</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">Dist</span><span>{ft(calc.landingDistance)}</span></div>
+                    </div>
+
+                    <div className="rounded-xl border-2 border-slate-900 bg-white p-4">
+                      <h2 className="mb-2 border-b-2 border-slate-200 pb-2 text-xl font-black uppercase">Conditions</h2>
+                      <div className="flex justify-between text-xl"><span className="font-bold">OAT</span><span>{oatC}°C</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">QNH</span><span>{qnh} inHg</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">Wind</span><span>{deg(windDir)} / {windSpeed} kt</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">Headwind</span><span>{kt(calc.wind.headwind)}</span></div>
+                      <div className="flex justify-between text-xl"><span className="font-bold">Crosswind</span><span>{kt(calc.wind.crosswind)}</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-auto rounded-xl border-2 border-slate-900 bg-white p-4">
+                  <h2 className="mb-2 border-b-2 border-slate-200 pb-2 text-xl font-black uppercase">Loadout: {presetName}</h2>
+                  <div className="text-lg font-semibold leading-relaxed text-slate-700">
+                    {Object.entries(counts).filter(([id, qty]) => qty > 0).map(([id, qty]) => {
+                      const store = stores.find(s => s.id === id);
+                      return store ? `${qty}x ${store.name}` : null;
+                    }).filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                
+                <div className="mt-2 text-center text-sm font-bold text-slate-400">DCS TOLD Calculator Export · {new Date().toLocaleDateString()}</div>
+              </div>
+            </div>
+
           </div>
         </main>
       );
