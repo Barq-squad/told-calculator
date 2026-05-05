@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DCS TOLD Calculator</title>
+  <title>DJS TOLD Calculator</title>
   
   <!-- Chargement de React, ReactDOM et Babel pour lire le JSX directement dans le navigateur -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -108,6 +108,50 @@
           { id: "31", mag: 310, tru: 312, lengthFt: 7218, lengthM: 2200, widthM: 45 },
         ],
       },
+      ramstein: {
+        name: "Ramstein AB",
+        icao: "ETAR",
+        elevationFt: 776,
+        location: "N 49°26.2' E 007°36.0'",
+        nav: "TWR 122.1 / U28 · TACAN 81X RMS · ILS 08 110.1 · ILS 26 109.7",
+        runways: [
+          { id: "08", mag: 80, tru: 82, lengthFt: 10498, lengthM: 3200, widthM: 45 },
+          { id: "26", mag: 260, tru: 262, lengthFt: 10498, lengthM: 3200, widthM: 45 },
+        ],
+      },
+      spangdahlem: {
+        name: "Spangdahlem AB",
+        icao: "ETAD",
+        elevationFt: 1196,
+        location: "N 49°58.4' E 006°41.6'",
+        nav: "TWR 122.1 / U28 · TACAN 114X SPM · ILS 23 109.9",
+        runways: [
+          { id: "05", mag: 50, tru: 52, lengthFt: 10500, lengthM: 3200, widthM: 45 },
+          { id: "23", mag: 230, tru: 232, lengthFt: 10500, lengthM: 3200, widthM: 45 },
+        ],
+      },
+      hahn: {
+        name: "Hahn AB",
+        icao: "EDFH",
+        elevationFt: 1649,
+        location: "N 49°56.9' E 007°15.8'",
+        nav: "TWR 119.2 · TACAN 75X HAH",
+        runways: [
+          { id: "03", mag: 30, tru: 32, lengthFt: 12467, lengthM: 3800, widthM: 45 },
+          { id: "21", mag: 210, tru: 212, lengthFt: 12467, lengthM: 3800, widthM: 45 },
+        ],
+      },
+      tempelhof: {
+        name: "Berlin Tempelhof",
+        icao: "EDDI",
+        elevationFt: 167,
+        location: "N 52°28.4' E 013°24.1'",
+        nav: "TWR 119.525",
+        runways: [
+          { id: "09L", mag: 90, tru: 92, lengthFt: 6939, lengthM: 2115, widthM: 42 },
+          { id: "27R", mag: 270, tru: 272, lengthFt: 6939, lengthM: 2115, widthM: 42 },
+        ],
+      },
     };
 
     const STORES = [
@@ -154,7 +198,7 @@
 
     const T = {
       en: {
-        app: "DCS TOLD Calculator",
+        app: "DJS TOLD Calculator",
         sub: "Takeoff, landing and fuel estimator with loadout selection.",
         lang: "Language", aircraft: "Aircraft", base: "Base", runway: "Runway",
         weather: "Weather", oat: "OAT", qnh: "QNH", windFrom: "Wind from", windSpeed: "Wind speed",
@@ -176,14 +220,15 @@
         aarOffload: "AAR offload needed", landingFuelProjected: "Projected landing fuel",
         fuelOk: "Fuel plan OK without AAR.", fuelShort: "Selected fuel is short for the mission without AAR.",
         fuelAarRequired: "AAR required with selected takeoff fuel.", fuelAarOptional: "AAR planned, but selected fuel already covers the estimate.",
-        bases: "Persian Gulf base cards", assumptions: "Assumptions",
+        bases: "Base cards (Persian Gulf & Germany)", assumptions: "Assumptions",
         assumptionText: "DCS planning estimator only, not certified real-world TOLD. Tune with Tacview and squadron SOP.",
         margin: "margin", estimated: "estimated", max: "Max", limit: "Limit", usable: "usable fuel",
         closed: "Closed", nav: "Nav / radio", planning: "Planning note", elevation: "Elevation",
         fetchMetar: "Live METAR", fetching: "Fetching...", downloadPng: "Download PNG", downloading: "Generating...",
+        loadDtc: "Load Flight Plan (Nav-Builder, DTC, .json)", dtcLoaded: "Flight plan loaded: {dist} nm added.", dtcError: "Invalid file or no waypoints found.",
       },
       fr: {
-        app: "Calculateur TOLD DCS",
+        app: "Calculateur TOLD DJS",
         sub: "Estimateur décollage, atterrissage et fuel avec choix du loadout.",
         lang: "Langue", aircraft: "Avion", base: "Base", runway: "Piste",
         weather: "Météo", oat: "Température", qnh: "QNH", windFrom: "Vent du", windSpeed: "Force du vent",
@@ -205,11 +250,12 @@
         aarOffload: "Offload AAR requis", landingFuelProjected: "Fuel prévu au posé",
         fuelOk: "Plan fuel OK sans AAR.", fuelShort: "Fuel sélectionné insuffisant sans AAR.",
         fuelAarRequired: "AAR requis avec le fuel sélectionné.", fuelAarOptional: "AAR prévu, mais fuel déjà suffisant.",
-        bases: "Fiches bases Golfe Persique", assumptions: "Hypothèses",
+        bases: "Fiches bases (Golfe Persique & Allemagne)", assumptions: "Hypothèses",
         assumptionText: "Estimateur DCS uniquement, non certifié TOLD réel. À calibrer avec Tacview et SOP escadron.",
         margin: "marge", estimated: "estimé", max: "Max", limit: "Limite", usable: "fuel utilisable",
         closed: "Fermé", nav: "Nav / radio", planning: "Note planning", elevation: "Altitude",
         fetchMetar: "Météo réelle (METAR)", fetching: "Chargement...", downloadPng: "Télécharger PNG", downloading: "Génération...",
+        loadDtc: "Charger Plan de vol (Nav-Builder, DTC, .json)", dtcLoaded: "Plan chargé : {dist} nm calculés.", dtcError: "Format invalide ou aucun waypoint.",
       },
     };
 
@@ -467,6 +513,7 @@
       const [copied, setCopied] = useState(false);
       const [fetchingMetar, setFetchingMetar] = useState(false);
       const [downloading, setDownloading] = useState(false);
+      const [dtcMessage, setDtcMessage] = useState("");
 
       const text = T[language];
       const base = AIRBASES[baseId];
@@ -496,6 +543,132 @@
       function changeCount(id, delta) {
         setCounts((previous) => ({ ...previous, [id]: clamp((previous[id] || 0) + delta, 0, 16) }));
       }
+
+      function extractPoints(obj) {
+        let points = null;
+
+        // Support spécifique et prioritaire pour Nav-Builder-DCS
+        if (obj && Array.isArray(obj.waypoints)) {
+          return obj.waypoints.filter(wp => wp && (wp.lat !== undefined || wp.latitude !== undefined || wp.x !== undefined));
+        }
+        if (obj && Array.isArray(obj.route)) {
+          return obj.route.filter(wp => wp && (wp.lat !== undefined || wp.latitude !== undefined || wp.x !== undefined));
+        }
+
+        // Recherche récursive du premier tableau contenant des coordonnées valides (fallback)
+        const search = (node) => {
+          if (points) return;
+          if (Array.isArray(node) && node.length > 1) {
+            const validPoints = node.filter(wp => wp && (wp.lat !== undefined || wp.latitude !== undefined || wp.x !== undefined));
+            if (validPoints.length > 1) {
+              points = validPoints;
+              return;
+            }
+          }
+          if (node && typeof node === 'object') {
+            Object.values(node).forEach(search);
+          }
+        };
+        search(obj);
+        return points;
+      }
+
+      function parseTextForWaypoints(textContent) {
+        const points = [];
+        const lines = textContent.split('\n');
+        let tempX = null, tempY = null;
+        
+        for (let line of lines) {
+           // On cherche des déclarations typiques en Lua ou INI de DCS
+           let mX = line.match(/(?:x|lat)"?\s*[:=]\s*(-?\d+(?:\.\d+)?)/i);
+           let mY = line.match(/(?:y|z|lon|lng)"?\s*[:=]\s*(-?\d+(?:\.\d+)?)/i);
+           
+           if (mX) tempX = parseFloat(mX);
+           if (mY) tempY = parseFloat(mY);
+           
+           if (tempX !== null && tempY !== null) {
+              if (Math.abs(tempX) <= 180 && Math.abs(tempY) <= 180) {
+                 points.push({ lat: tempX, lon: tempY });
+              } else {
+                 points.push({ x: tempX, y: tempY });
+              }
+              tempX = null; 
+              tempY = null;
+           }
+        }
+        return points;
+      }
+
+      function calculateDistance(points) {
+        let totalDist = 0;
+        for (let i = 0; i < points.length - 1; i++) {
+          let p1 = points[i];
+          let p2 = points[i+1];
+          let lat1 = p1.lat ?? p1.latitude;
+          let lon1 = p1.lon ?? p1.longitude ?? p1.lng;
+          let lat2 = p2.lat ?? p2.latitude;
+          let lon2 = p2.lon ?? p2.longitude ?? p2.lng;
+
+          // Si coordonnées géographiques (Lat/Lon)
+          if (lat1 !== undefined && lon1 !== undefined && lat2 !== undefined && lon2 !== undefined) {
+            const R = 3440.065; // Rayon de la Terre en NM
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            totalDist += R * c;
+          } 
+          // Si coordonnées internes DCS (X/Z ou X/Y en mètres)
+          else if (p1.x !== undefined && p2.x !== undefined) {
+            let y1 = p1.z !== undefined ? p1.z : p1.y;
+            let y2 = p2.z !== undefined ? p2.z : p2.y;
+            if (y1 !== undefined && y2 !== undefined) {
+              const dx = p2.x - p1.x;
+              const dy = y2 - y1;
+              totalDist += Math.sqrt(dx*dx + dy*dy) / 1852; // Conversion des mètres en NM
+            }
+          }
+        }
+        return totalDist;
+      }
+
+      const handleDtcUpload = (event) => {
+        const file = event.target.files;
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const content = e.target.result;
+            let points = null;
+
+            try {
+              // Tentative 1 : Fichier formaté en JSON pur
+              const json = JSON.parse(content);
+              points = extractPoints(json);
+            } catch (err) {
+              // Tentative 2 : Fichier texte brut (souvent des tables Lua pour les .dtc natifs)
+              points = parseTextForWaypoints(content);
+            }
+
+            if (points && points.length > 1) {
+              const dist = calculateDistance(points);
+              if (dist > 0) {
+                 setTotalDistanceNm(Math.round(dist));
+                 setDtcMessage(text.dtcLoaded.replace("{dist}", Math.round(dist)));
+              } else {
+                 setDtcMessage(text.dtcError);
+              }
+            } else {
+              setDtcMessage(text.dtcError);
+            }
+          } catch (err) {
+            setDtcMessage(text.dtcError);
+          }
+        };
+        reader.readAsText(file);
+        event.target.value = ''; // Réinitialiser le champ pour permettre de re-sélectionner le même fichier
+      };
 
       async function fetchMetar() {
         setFetchingMetar(true);
@@ -589,7 +762,9 @@
             <header className="rounded-3xl border border-white/10 bg-white/10 p-6 text-white shadow-2xl backdrop-blur md:p-8">
               <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
                 <div>
-                  <div className="mb-3 inline-flex rounded-full border border-sky-300/30 bg-sky-400/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-sky-100">DCS World · Persian Gulf · F-16C / F-15E</div>
+                  <a href="https://dcs-djs.freeboxos.fr/" target="_blank" rel="noreferrer" className="mb-3 inline-flex items-center gap-2 rounded-full border border-sky-300/30 bg-sky-400/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-sky-100 transition-colors hover:bg-sky-400/20">
+                    ✈️ Digital Joint Squadron
+                  </a>
                   <h1 className="text-3xl font-black md:text-5xl">{text.app}</h1>
                   <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-200 md:text-base">{text.sub}</p>
                 </div>
@@ -750,6 +925,14 @@
                     </div>
                     <Pill className={fuelStatusTone(fuel.statusKey)}>{text[fuel.statusKey]}</Pill>
                   </div>
+                  
+                  {/* --- BOUTON D'IMPORTATION DTC --- */}
+                  <div className="mb-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                    <Label>{text.loadDtc}</Label>
+                    <input type="file" accept=".json, .dtc" onChange={handleDtcUpload} className="text-sm font-semibold text-slate-700 file:mr-4 file:rounded-full file:border-0 file:bg-sky-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-sky-700 hover:file:bg-sky-200" />
+                    {dtcMessage && <p className={`mt-2 text-xs font-bold ${dtcMessage === text.dtcError ? "text-red-600" : "text-emerald-600"}`}>{dtcMessage}</p>}
+                  </div>
+
                   <div className="grid gap-4 md:grid-cols-5">
                     <NumberField label={text.totalDist} value={totalDistanceNm} onChange={setTotalDistanceNm} min={0} max={2500} suffix="nm" />
                     <NumberField label={text.rtbaDist} value={rtbaDistanceNm} onChange={setRtbaDistanceNm} min={0} max={2500} suffix="nm" />
@@ -854,7 +1037,7 @@
                   </div>
                 </div>
                 
-                <div className="mt-2 text-center text-sm font-bold text-slate-400">DCS TOLD Calculator Export · {new Date().toLocaleDateString()}</div>
+                <div className="mt-2 text-center text-sm font-bold text-slate-400">Digital Joint Squadron (DJS) · dcs-djs.freeboxos.fr · {new Date().toLocaleDateString()}</div>
               </div>
             </div>
 
